@@ -8,13 +8,14 @@ const DEFAULT_SETTINGS = {
 };
 
 const translationCache = new Map();
-const MAX_CACHE_ITEMS = 400;
-const MAX_BATCH_ITEMS = 8;
+const MAX_CACHE_ITEMS = 1200;
+const MAX_BATCH_ITEMS = 12;
 const MAX_TEXT_LENGTH = 600;
 const TRANSLATION_CACHE_KEY = "ytlt-background-cache";
 const pendingRequests = new Map();
 let cacheLoaded = false;
 let activeRequests = 0;
+let cacheSaveTimer = null;
 const requestQueue = [];
 
 chrome.runtime.onInstalled.addListener(async () => {
@@ -103,7 +104,7 @@ function enqueueTranslation(task) {
 }
 
 function drainQueue() {
-  while (activeRequests < 2 && requestQueue.length > 0) {
+  while (activeRequests < 4 && requestQueue.length > 0) {
     const next = requestQueue.shift();
     activeRequests += 1;
 
@@ -163,7 +164,10 @@ async function loadPersistentCache() {
 }
 
 function savePersistentCache() {
-  chrome.storage.local.set({
-    [TRANSLATION_CACHE_KEY]: [...translationCache.entries()].slice(-MAX_CACHE_ITEMS)
-  });
+  clearTimeout(cacheSaveTimer);
+  cacheSaveTimer = setTimeout(() => {
+    chrome.storage.local.set({
+      [TRANSLATION_CACHE_KEY]: [...translationCache.entries()].slice(-MAX_CACHE_ITEMS)
+    });
+  }, 700);
 }

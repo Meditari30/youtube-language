@@ -7,14 +7,16 @@ const DEFAULT_SETTINGS = {
   fontSize: 18
 };
 
-const RENDER_INTERVAL_MS = 250;
-const TRACK_RETRY_MS = 500;
-const TRACK_RETRY_LIMIT = 16;
-const PREFETCH_AHEAD = 4;
+const RENDER_INTERVAL_MS = 200;
+const TRACK_RETRY_MS = 350;
+const TRACK_RETRY_LIMIT = 10;
+const PREFETCH_AHEAD = 8;
 const STORAGE_FLUSH_MS = 900;
 const MAX_VIDEO_CACHE_ITEMS = 700;
-const DOM_FALLBACK_DELAY_MS = 2500;
-const NO_CAPTION_HINT_DELAY_MS = 8000;
+const DOM_FALLBACK_DELAY_MS = 1600;
+const NO_CAPTION_HINT_DELAY_MS = 6000;
+const ORIGINAL_DISPLAY_LIMIT = 120;
+const TRANSLATED_DISPLAY_LIMIT = 120;
 
 let settings = { ...DEFAULT_SETTINGS };
 let overlay;
@@ -38,6 +40,7 @@ let domFallbackTimer = null;
 let captionLoadStartedAt = 0;
 let captionTrackFailed = false;
 let autoCaptionAttempted = false;
+let captionTrackCache = new Map();
 
 init();
 
@@ -148,14 +151,23 @@ async function loadVideoCaptions(nextVideoId) {
 
     cacheKey = nextCacheKey;
     translations = new Map(Object.entries(cached[nextCacheKey] || {}));
-    cues = await fetchTrackCues(track);
-    translatedCues = await fetchOfficialTranslatedCues(track, settings.targetLanguage);
+    const [sourceCues, officialCues] = await Promise.all([
+      fetchTrackCues(track),
+      fetchOfficialTranslatedCues(track, settings.targetLanguage)
+    ]);
+    cues = sourceCues;
+    translatedCues = officialCues;
 
     if (serial !== loadSerial) {
       return;
     }
 
     activeCueIndex = -1;
+    video = document.querySelector("video.html5-main-video, video") || video;
+    if (video && translatedCues.length === 0) {
+      const index = Math.max(findCueIndex(video.currentTime), 0);
+      requestTranslationBatch(index, true);
+    }
   } catch (error) {
     if (serial === loadSerial) {
       cues = [];
@@ -181,6 +193,11 @@ async function waitForCaptionTrack(nextVideoId, serial) {
 }
 
 async function getCaptionTracks(nextVideoId) {
+  const cachedTracks = captionTrackCache.get(nextVideoId);
+  if (cachedTracks) {
+    return cachedTracks;
+  }
+
   const tracks = [];
   const responses = await getPlayerResponses(nextVideoId);
 
@@ -192,7 +209,7 @@ async function getCaptionTracks(nextVideoId) {
   }
 
   const seen = new Set();
-  return tracks.filter((track) => {
+  const uniqueTracks = tracks.filter((track) => {
     const key = `${track.baseUrl}:${track.languageCode}:${track.kind || ""}`;
     if (!track.baseUrl || seen.has(key)) {
       return false;
@@ -201,6 +218,9 @@ async function getCaptionTracks(nextVideoId) {
     seen.add(key);
     return true;
   });
+
+  captionTrackCache.set(nextVideoId, uniqueTracks);
+  return uniqueTracks;
 }
 
 async function getPlayerResponses(nextVideoId) {
@@ -390,13 +410,18 @@ function renderCurrentCue(currentTime) {
 
   const hasOfficialTranslation = translatedCues.length > 0;
   if (!translatedText && !hasOfficialTranslation) {
-    requestCueTranslation(cue);
+    requestTranslationBatch(index, true);
   }
 
   if (!hasOfficialTranslation) {
     prefetchTranslations(index);
   }
-  renderOverlay(cue.text, translatedText);
+
+  if (translatedText) {
+    renderOverlay(cue.text, translatedText);
+  } else {
+    renderOverlay("", "");
+  }
 }
 
 function getTranslatedCueText(index, cue) {
@@ -438,14 +463,15 @@ function findCueIndex(currentTime) {
 function prefetchTranslations(index) {
   window.clearTimeout(prefetchTimer);
   prefetchTimer = window.setTimeout(() => {
-    prefetchTranslationBatch(index);
+    requestTranslationBatch(index, false);
   }, 120);
 }
 
-async function prefetchTranslationBatch(index) {
+async function requestTranslationBatch(index, includeCurrent) {
   const batch = [];
+  const startOffset = includeCurrent ? 0 : 1;
 
-  for (let offset = 1; offset <= PREFETCH_AHEAD; offset += 1) {
+  for (let offset = startOffset; offset <= PREFETCH_AHEAD; offset += 1) {
     const cue = cues[index + offset];
     if (cue && !translations.has(cue.id) && !pendingTranslations.has(cue.id)) {
       batch.push(cue);
@@ -553,7 +579,11 @@ function renderDomFallbackCaption() {
     requestDomFallbackTranslation(captionText);
   }
 
-  renderOverlay(captionText, domFallbackTranslatedText);
+  if (domFallbackTranslatedText) {
+    renderOverlay(captionText, domFallbackTranslatedText);
+  } else {
+    renderOverlay("", "");
+  }
 }
 
 function tryEnableYouTubeCaptions() {
@@ -646,16 +676,18 @@ function renderOverlay(originalText, translatedText) {
 
   const originalNode = overlay.querySelector(".ytlt-original");
   const translatedNode = overlay.querySelector(".ytlt-translated");
-  const hasOriginalText = Boolean(normalizeText(originalText));
-  const hasTranslatedText = Boolean(normalizeText(translatedText));
+  const displayOriginalText = formatDisplayLine(originalText, ORIGINAL_DISPLAY_LIMIT);
+  const displayTranslatedText = formatDisplayLine(translatedText, TRANSLATED_DISPLAY_LIMIT);
+  const hasOriginalText = Boolean(displayOriginalText);
+  const hasTranslatedText = Boolean(displayTranslatedText);
   const shouldShow = settings.enabled && (hasTranslatedText || (settings.showOriginal && hasOriginalText));
 
   overlay.classList.toggle("ytlt-hidden", !shouldShow);
   overlay.classList.toggle("ytlt-top", settings.position === "top");
   overlay.classList.toggle("ytlt-bottom", settings.position !== "top");
   originalNode.hidden = !settings.showOriginal || !hasOriginalText;
-  originalNode.textContent = originalText || "";
-  translatedNode.textContent = translatedText || "";
+  originalNode.textContent = displayOriginalText;
+  translatedNode.textContent = displayTranslatedText;
 }
 
 function applySettings() {
@@ -705,6 +737,15 @@ function normalizeText(text) {
   return String(text || "")
     .replace(/\s+/g, " ")
     .trim();
+}
+
+function formatDisplayLine(text, limit) {
+  const normalized = normalizeText(text);
+  if (normalized.length <= limit) {
+    return normalized;
+  }
+
+  return `${normalized.slice(0, limit - 1).trim()}...`;
 }
 
 function normalizeLanguage(language) {

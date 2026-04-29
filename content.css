@@ -3,13 +3,13 @@
   position: fixed;
   left: 50%;
   z-index: 2147483647;
-  width: min(86vw, 980px);
+  width: min(82vw, 920px);
   transform: translateX(-50%);
   pointer-events: none;
   color: #fff;
   font-family: Arial, "Microsoft YaHei", sans-serif;
   font-size: var(--ytlt-font-size);
-  line-height: 1.35;
+  line-height: 1.25;
   text-align: center;
   text-shadow: 0 2px 8px rgba(0, 0, 0, 0.9);
 }
@@ -28,24 +28,28 @@
 
 #yt-language-translator-overlay .ytlt-original,
 #yt-language-translator-overlay .ytlt-translated {
-  display: inline-block;
+  display: block;
   max-width: 100%;
-  margin: 3px auto;
-  padding: 5px 10px;
+  height: calc(var(--ytlt-font-size) * 1.45);
+  margin: 2px auto;
+  padding: 3px 10px;
   border-radius: 6px;
   background: rgba(0, 0, 0, 0.68);
-  box-decoration-break: clone;
-  -webkit-box-decoration-break: clone;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 #yt-language-translator-overlay .ytlt-original {
   color: #d7e8ff;
-  font-size: 0.82em;
+  font-size: 0.78em;
+  font-weight: 600;
 }
 
 #yt-language-translator-overlay .ytlt-translated {
   color: #fff;
   font-weight: 700;
+  font-size: 1em;
 }
 
 @media (max-width: 720px) {
