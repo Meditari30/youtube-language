@@ -1,0 +1,102 @@
+* {
+  box-sizing: border-box;
+}
+
+body {
+  width: 300px;
+  margin: 0;
+  color: #172033;
+  font-family: Arial, "Microsoft YaHei", sans-serif;
+  background: #f6f7f9;
+}
+
+.panel {
+  display: grid;
+  gap: 12px;
+  padding: 14px;
+}
+
+header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+h1 {
+  margin: 0;
+  font-size: 17px;
+  font-weight: 700;
+}
+
+label {
+  display: grid;
+  gap: 6px;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+select,
+input[type="range"] {
+  width: 100%;
+}
+
+select {
+  height: 34px;
+  border: 1px solid #c8ced8;
+  border-radius: 6px;
+  color: #172033;
+  background: #fff;
+}
+
+.check {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 600;
+}
+
+.switch {
+  display: inline-flex;
+}
+
+.switch input {
+  display: none;
+}
+
+.switch span {
+  position: relative;
+  display: inline-block;
+  width: 42px;
+  height: 24px;
+  border-radius: 999px;
+  background: #aeb6c4;
+}
+
+.switch span::after {
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.22);
+  content: "";
+  transition: transform 140ms ease;
+}
+
+.switch input:checked + span {
+  background: #1677ff;
+}
+
+.switch input:checked + span::after {
+  transform: translateX(18px);
+}
+
+.note {
+  margin: 2px 0 0;
+  color: #5f6b7d;
+  font-size: 12px;
+  line-height: 1.45;
+}

@@ -1,0 +1,18 @@
+ 主要功能：
+
+  - 在 YouTube 页面读取当前显示的字幕。
+  - 使用 Google Translate 公开接口翻译。
+  - 在播放器上叠加双语字幕。
+  - 弹窗可设置目标语言、源语言、字幕位置、字号、是否显示原字幕。
+
+  安装方式：
+
+  1. 打开 Chrome：chrome://extensions/
+  2. 开启「开发者模式」
+  3. 点击「加载已解压的扩展程序」
+  4. 选择 C:\Users\Admin\youtube-language-translator-extension
+  5. 打开 YouTube 视频，并先开启 YouTube 自带字幕
+
+  我已做了静态检查：manifest.json 可解析，扩展文件齐全。没有实际启动 Chrome 做浏览器内测试；首次使用时如果字幕不显示，通
+  常是 YouTube 自带字幕没打开，或页面字幕 DOM 结构变了，需要调整 /C:/Users/Admin/youtube-language-translator-extension/
+  content.js 里的 .ytp-caption-segment 选择器。

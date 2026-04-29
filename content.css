@@ -1,0 +1,56 @@
+#yt-language-translator-overlay {
+  --ytlt-font-size: 18px;
+  position: fixed;
+  left: 50%;
+  z-index: 2147483647;
+  width: min(86vw, 980px);
+  transform: translateX(-50%);
+  pointer-events: none;
+  color: #fff;
+  font-family: Arial, "Microsoft YaHei", sans-serif;
+  font-size: var(--ytlt-font-size);
+  line-height: 1.35;
+  text-align: center;
+  text-shadow: 0 2px 8px rgba(0, 0, 0, 0.9);
+}
+
+#yt-language-translator-overlay.ytlt-bottom {
+  bottom: 12%;
+}
+
+#yt-language-translator-overlay.ytlt-top {
+  top: 12%;
+}
+
+#yt-language-translator-overlay.ytlt-hidden {
+  display: none;
+}
+
+#yt-language-translator-overlay .ytlt-original,
+#yt-language-translator-overlay .ytlt-translated {
+  display: inline-block;
+  max-width: 100%;
+  margin: 3px auto;
+  padding: 5px 10px;
+  border-radius: 6px;
+  background: rgba(0, 0, 0, 0.68);
+  box-decoration-break: clone;
+  -webkit-box-decoration-break: clone;
+}
+
+#yt-language-translator-overlay .ytlt-original {
+  color: #d7e8ff;
+  font-size: 0.82em;
+}
+
+#yt-language-translator-overlay .ytlt-translated {
+  color: #fff;
+  font-weight: 700;
+}
+
+@media (max-width: 720px) {
+  #yt-language-translator-overlay {
+    width: 94vw;
+    font-size: max(15px, calc(var(--ytlt-font-size) - 2px));
+  }
+}
