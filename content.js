@@ -13,7 +13,8 @@ const TRACK_RETRY_LIMIT = 16;
 const PREFETCH_AHEAD = 4;
 const STORAGE_FLUSH_MS = 900;
 const MAX_VIDEO_CACHE_ITEMS = 700;
-const DOM_FALLBACK_DELAY_MS = 5000;
+const DOM_FALLBACK_DELAY_MS = 2500;
+const NO_CAPTION_HINT_DELAY_MS = 8000;
 
 let settings = { ...DEFAULT_SETTINGS };
 let overlay;
@@ -35,6 +36,8 @@ let domFallbackText = "";
 let domFallbackTranslatedText = "";
 let domFallbackTimer = null;
 let captionLoadStartedAt = 0;
+let captionTrackFailed = false;
+let autoCaptionAttempted = false;
 
 init();
 
@@ -59,6 +62,17 @@ async function init() {
 
     applySettings();
     resetVideoState();
+  });
+
+  chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+    if (message?.type !== "rescan") {
+      return false;
+    }
+
+    resetVideoState();
+    tick();
+    sendResponse({ ok: true });
+    return false;
   });
 }
 
@@ -87,8 +101,11 @@ function tick() {
 
   video = document.querySelector("video.html5-main-video, video") || video;
   if (!video || cues.length === 0) {
+    tryEnableYouTubeCaptions();
     if (videoId && shouldUseDomFallback()) {
       renderDomFallbackCaption();
+    } else if (videoId && shouldShowNoCaptionHint()) {
+      renderOverlay("", "Waiting for YouTube captions...");
     }
     return;
   }
@@ -108,6 +125,8 @@ async function loadVideoCaptions(nextVideoId) {
   pendingTranslations.clear();
   domFallbackText = "";
   domFallbackTranslatedText = "";
+  captionTrackFailed = false;
+  autoCaptionAttempted = false;
   window.clearTimeout(domFallbackTimer);
   renderOverlay("", "");
 
@@ -115,7 +134,8 @@ async function loadVideoCaptions(nextVideoId) {
     const track = await waitForCaptionTrack(nextVideoId, serial);
     if (!track || serial !== loadSerial) {
       if (serial === loadSerial) {
-        videoId = "";
+        captionTrackFailed = true;
+        tryEnableYouTubeCaptions();
       }
       return;
     }
@@ -138,8 +158,8 @@ async function loadVideoCaptions(nextVideoId) {
     activeCueIndex = -1;
   } catch (error) {
     if (serial === loadSerial) {
-      videoId = "";
       cues = [];
+      captionTrackFailed = true;
       renderOverlay("", "");
     }
 
@@ -512,14 +532,18 @@ async function requestCueTranslation(cue) {
 }
 
 function shouldUseDomFallback() {
-  return captionLoadStartedAt > 0 && Date.now() - captionLoadStartedAt > DOM_FALLBACK_DELAY_MS;
+  return captionLoadStartedAt > 0 && (captionTrackFailed || Date.now() - captionLoadStartedAt > DOM_FALLBACK_DELAY_MS);
+}
+
+function shouldShowNoCaptionHint() {
+  return captionLoadStartedAt > 0 && Date.now() - captionLoadStartedAt > NO_CAPTION_HINT_DELAY_MS;
 }
 
 function renderDomFallbackCaption() {
   const captionText = getCurrentDomCaptionText();
 
   if (!captionText) {
-    renderOverlay("", "");
+    renderOverlay("", shouldShowNoCaptionHint() ? "No YouTube captions detected. Turn on CC if this video has subtitles." : "");
     return;
   }
 
@@ -530,6 +554,21 @@ function renderDomFallbackCaption() {
   }
 
   renderOverlay(captionText, domFallbackTranslatedText);
+}
+
+function tryEnableYouTubeCaptions() {
+  if (autoCaptionAttempted) {
+    return;
+  }
+
+  const captionsButton = document.querySelector(".ytp-subtitles-button");
+  if (!captionsButton || captionsButton.getAttribute("aria-pressed") === "true") {
+    autoCaptionAttempted = true;
+    return;
+  }
+
+  autoCaptionAttempted = true;
+  captionsButton.click();
 }
 
 function getCurrentDomCaptionText() {
@@ -637,6 +676,8 @@ function resetVideoState() {
   translations = new Map();
   pendingTranslations.clear();
   captionLoadStartedAt = 0;
+  captionTrackFailed = false;
+  autoCaptionAttempted = false;
   window.clearTimeout(prefetchTimer);
   domFallbackText = "";
   domFallbackTranslatedText = "";

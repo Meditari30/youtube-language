@@ -34,6 +34,8 @@ async function init() {
     control.addEventListener("input", () => saveSetting(key, control));
     control.addEventListener("change", () => saveSetting(key, control));
   }
+
+  document.querySelector("#rescan").addEventListener("click", rescanActiveTab);
 }
 
 async function saveSetting(key, control) {
@@ -41,4 +43,17 @@ async function saveSetting(key, control) {
   await chrome.storage.sync.set({
     [key]: key === "fontSize" ? Number(value) : value
   });
+}
+
+async function rescanActiveTab() {
+  const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+  if (!tab?.id) {
+    return;
+  }
+
+  try {
+    await chrome.tabs.sendMessage(tab.id, { type: "rescan" });
+  } catch (error) {
+    console.warn("[YouTube Translator]", error);
+  }
 }

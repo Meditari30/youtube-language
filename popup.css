@@ -37,7 +37,8 @@ label {
 }
 
 select,
-input[type="range"] {
+input[type="range"],
+button {
   width: 100%;
 }
 
@@ -47,6 +48,20 @@ select {
   border-radius: 6px;
   color: #172033;
   background: #fff;
+}
+
+button {
+  height: 34px;
+  border: 0;
+  border-radius: 6px;
+  color: #fff;
+  font-weight: 700;
+  background: #1677ff;
+  cursor: pointer;
+}
+
+button:active {
+  background: #0f5fcc;
 }
 
 .check {
