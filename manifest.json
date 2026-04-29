@@ -2,10 +2,11 @@
   "manifest_version": 3,
   "name": "YouTube Language Translator",
   "description": "Translate YouTube captions with Google Translate and show bilingual subtitles on the player.",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "permissions": ["storage"],
   "host_permissions": [
     "https://translate.googleapis.com/*",
+    "https://*.googlevideo.com/*",
     "https://www.youtube.com/*",
     "https://m.youtube.com/*"
   ],
@@ -18,7 +19,7 @@
   },
   "content_scripts": [
     {
-      "matches": ["https://www.youtube.com/watch*", "https://m.youtube.com/watch*"],
+      "matches": ["https://www.youtube.com/*", "https://m.youtube.com/*"],
       "js": ["content.js"],
       "css": ["content.css"],
       "run_at": "document_idle"
