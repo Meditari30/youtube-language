@@ -13,6 +13,7 @@ const TRACK_RETRY_LIMIT = 16;
 const PREFETCH_AHEAD = 4;
 const STORAGE_FLUSH_MS = 900;
 const MAX_VIDEO_CACHE_ITEMS = 700;
+const DOM_FALLBACK_DELAY_MS = 5000;
 
 let settings = { ...DEFAULT_SETTINGS };
 let overlay;
@@ -30,6 +31,10 @@ let translations = new Map();
 let pendingTranslations = new Map();
 let dirtyTranslations = false;
 let prefetchTimer = null;
+let domFallbackText = "";
+let domFallbackTranslatedText = "";
+let domFallbackTimer = null;
+let captionLoadStartedAt = 0;
 
 init();
 
@@ -80,8 +85,11 @@ function tick() {
     return;
   }
 
-  video = video || document.querySelector("video.html5-main-video, video");
+  video = document.querySelector("video.html5-main-video, video") || video;
   if (!video || cues.length === 0) {
+    if (videoId && shouldUseDomFallback()) {
+      renderDomFallbackCaption();
+    }
     return;
   }
 
@@ -91,12 +99,16 @@ function tick() {
 async function loadVideoCaptions(nextVideoId) {
   const serial = ++loadSerial;
   videoId = nextVideoId;
+  captionLoadStartedAt = Date.now();
   trackKey = `${settings.sourceLanguage}:${settings.targetLanguage}`;
   activeCueIndex = -1;
   cues = [];
   translatedCues = [];
   translations = new Map();
   pendingTranslations.clear();
+  domFallbackText = "";
+  domFallbackTranslatedText = "";
+  window.clearTimeout(domFallbackTimer);
   renderOverlay("", "");
 
   try {
@@ -344,7 +356,11 @@ function renderCurrentCue(currentTime) {
   const index = findCueIndex(currentTime);
   if (index === -1) {
     activeCueIndex = -1;
-    renderOverlay("", "");
+    if (shouldUseDomFallback()) {
+      renderDomFallbackCaption();
+    } else {
+      renderOverlay("", "");
+    }
     return;
   }
 
@@ -495,6 +511,58 @@ async function requestCueTranslation(cue) {
   pendingTranslations.set(cue.id, promise);
 }
 
+function shouldUseDomFallback() {
+  return captionLoadStartedAt > 0 && Date.now() - captionLoadStartedAt > DOM_FALLBACK_DELAY_MS;
+}
+
+function renderDomFallbackCaption() {
+  const captionText = getCurrentDomCaptionText();
+
+  if (!captionText) {
+    renderOverlay("", "");
+    return;
+  }
+
+  if (captionText !== domFallbackText) {
+    domFallbackText = captionText;
+    domFallbackTranslatedText = "";
+    requestDomFallbackTranslation(captionText);
+  }
+
+  renderOverlay(captionText, domFallbackTranslatedText);
+}
+
+function getCurrentDomCaptionText() {
+  return [...document.querySelectorAll(".ytp-caption-segment")]
+    .map((segment) => segment.textContent || "")
+    .join(" ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function requestDomFallbackTranslation(text) {
+  window.clearTimeout(domFallbackTimer);
+  domFallbackTimer = window.setTimeout(async () => {
+    try {
+      const response = await chrome.runtime.sendMessage({
+        type: "translate",
+        text,
+        sourceLanguage: settings.sourceLanguage,
+        targetLanguage: settings.targetLanguage
+      });
+
+      if (text !== domFallbackText || !response?.ok) {
+        return;
+      }
+
+      domFallbackTranslatedText = normalizeText(response.translatedText);
+      renderOverlay(text, domFallbackTranslatedText);
+    } catch (error) {
+      console.warn("[YouTube Translator]", error);
+    }
+  }, 250);
+}
+
 function scheduleStorageFlush() {
   window.clearTimeout(storageFlushTimer);
   storageFlushTimer = window.setTimeout(() => {
@@ -568,7 +636,11 @@ function resetVideoState() {
   translatedCues = [];
   translations = new Map();
   pendingTranslations.clear();
+  captionLoadStartedAt = 0;
   window.clearTimeout(prefetchTimer);
+  domFallbackText = "";
+  domFallbackTranslatedText = "";
+  window.clearTimeout(domFallbackTimer);
   renderOverlay("", "");
 }
 
