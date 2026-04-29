@@ -430,7 +430,42 @@ function getTranslatedCueText(index, cue) {
     return officialCue.text;
   }
 
+  const timeMatchedCue = findTranslatedCueByTime(cue.start);
+  if (timeMatchedCue?.text) {
+    return timeMatchedCue.text;
+  }
+
   return translations.get(cue.id) || "";
+}
+
+function findTranslatedCueByTime(startTime) {
+  if (translatedCues.length === 0) {
+    return null;
+  }
+
+  let low = 0;
+  let high = translatedCues.length - 1;
+  let closestCue = null;
+  let closestDistance = Infinity;
+
+  while (low <= high) {
+    const mid = Math.floor((low + high) / 2);
+    const cue = translatedCues[mid];
+    const distance = Math.abs(cue.start - startTime);
+
+    if (distance < closestDistance) {
+      closestDistance = distance;
+      closestCue = cue;
+    }
+
+    if (cue.start < startTime) {
+      low = mid + 1;
+    } else {
+      high = mid - 1;
+    }
+  }
+
+  return closestDistance < 1.2 ? closestCue : null;
 }
 
 function findCueIndex(currentTime) {
