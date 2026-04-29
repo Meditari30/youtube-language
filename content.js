@@ -14,7 +14,11 @@ let lastTranslatedText = "";
 let lastVideoId = "";
 let translateTimer = null;
 let requestSerial = 0;
-let observer = null;
+let pollTimer = null;
+let lastRequestTime = 0;
+
+const MIN_TRANSLATE_INTERVAL = 1200;
+const MAX_CAPTION_LENGTH = 500;
 
 init();
 
@@ -26,7 +30,6 @@ async function init() {
 
   ensureOverlay();
   applySettings();
-  startCaptionObserver();
   pollForCaptionChanges();
 
   chrome.storage.onChanged.addListener((changes, areaName) => {
@@ -39,28 +42,22 @@ async function init() {
     }
 
     applySettings();
-    requestCaptionTranslation(getCurrentCaptionText());
-  });
-}
-
-function startCaptionObserver() {
-  if (observer) {
-    observer.disconnect();
-  }
-
-  observer = new MutationObserver(() => {
-    requestCaptionTranslation(getCurrentCaptionText());
-  });
-
-  observer.observe(document.documentElement, {
-    childList: true,
-    subtree: true,
-    characterData: true
+    if (isWatchPage()) {
+      requestCaptionTranslation(getCurrentCaptionText());
+    }
   });
 }
 
 function pollForCaptionChanges() {
-  window.setInterval(() => {
+  window.clearInterval(pollTimer);
+  pollTimer = window.setInterval(() => {
+    if (!isWatchPage()) {
+      lastCaptionText = "";
+      lastTranslatedText = "";
+      renderOverlay("", "");
+      return;
+    }
+
     const currentVideoId = new URLSearchParams(location.search).get("v") || location.pathname;
     if (currentVideoId !== lastVideoId) {
       lastVideoId = currentVideoId;
@@ -71,7 +68,7 @@ function pollForCaptionChanges() {
     }
 
     requestCaptionTranslation(getCurrentCaptionText());
-  }, 700);
+  }, 1000);
 }
 
 function getCurrentCaptionText() {
@@ -115,11 +112,22 @@ function requestCaptionTranslation(captionText) {
 
 async function translateCurrentCaption(captionText) {
   const serial = ++requestSerial;
+  const elapsed = Date.now() - lastRequestTime;
+
+  if (elapsed < MIN_TRANSLATE_INTERVAL) {
+    window.clearTimeout(translateTimer);
+    translateTimer = window.setTimeout(() => {
+      translateCurrentCaption(captionText);
+    }, MIN_TRANSLATE_INTERVAL - elapsed);
+    return;
+  }
+
+  lastRequestTime = Date.now();
 
   try {
     const response = await chrome.runtime.sendMessage({
       type: "translate",
-      text: captionText,
+      text: captionText.slice(0, MAX_CAPTION_LENGTH),
       sourceLanguage: settings.sourceLanguage,
       targetLanguage: settings.targetLanguage
     });
@@ -186,4 +194,8 @@ function normalizeText(text) {
   return String(text || "")
     .replace(/\s+/g, " ")
     .trim();
+}
+
+function isWatchPage() {
+  return location.hostname.includes("youtube.com") && location.pathname === "/watch";
 }
